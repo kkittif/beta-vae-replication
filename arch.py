@@ -1,5 +1,7 @@
 import torch as t
 import torch.nn as nn
+t.manual_seed(0)
+
 
 class beta_VAE_chairs(nn.Module):
     def __init__(self, k = 32):
@@ -8,7 +10,7 @@ class beta_VAE_chairs(nn.Module):
         self.latent_dim = k
         self.encoder = nn.Sequential( 
             nn.Conv2d(1,32, kernel_size = (4,4), stride = 2), #input = 1x64x64 output = 32x31x31
-            nn.Conv2d(32,32, kernel_size = (4,4), stride = 2), #output = 32x14x14
+            nn.Conv2d(32,32, kernel_size = (4,4), stride = 2), #output = 32x14x14 (this one layer uses the floor function in the formula for the outputsize, so we need output_padding = 1 in th ereverse conv)
             nn.Conv2d(32,64, kernel_size = (4,4), stride = 2), #output = 64x6x6
             nn.Conv2d(64,64, kernel_size = (4,4), stride = 2), #output = 64x2x2
             nn.Flatten(start_dim=0, end_dim=-1),
@@ -24,7 +26,7 @@ class beta_VAE_chairs(nn.Module):
         nn.Unflatten(dim=0, unflattened_size=(64, 2, 2)), #output = 64x2x2
         nn.ConvTranspose2d(in_channels = 64, out_channels=64, kernel_size=(4,4), stride = 2), #output = 64x6x6
         nn.ConvTranspose2d(in_channels = 64, out_channels=32, kernel_size=(4,4), stride = 2), #output = 32x14x14
-        nn.ConvTranspose2d(in_channels = 32, out_channels=32, kernel_size=(4,4), stride = 2, padding = 1), #output = 32x31x31 (without padding: 32x30x30)
+        nn.ConvTranspose2d(in_channels = 32, out_channels=32, kernel_size=(4,4), stride = 2, output_padding = 1), #output = 32x31x31 
         nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2),
         nn.ReLU() #output should be 1x64x64, where each entry is a probability 
         )
