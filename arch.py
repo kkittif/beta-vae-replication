@@ -1,19 +1,28 @@
 import torch as t
 import torch.nn as nn
-t.manual_seed(0)
 
 
 class beta_VAE_chairs(nn.Module):
     def __init__(self, k = 32):
         super(beta_VAE_chairs, self).__init__()
 
+        self.bias_bool = False
+
         self.latent_dim = k
         self.encoder = nn.Sequential( 
-            nn.Conv2d(1,32, kernel_size = (4,4), stride = 2), #input = 1x64x64 output = 32x31x31
-            nn.Conv2d(32,32, kernel_size = (4,4), stride = 2), #output = 32x14x14 (this one layer uses the floor function in the formula for the outputsize, so we need output_padding = 1 in th ereverse conv)
-            nn.Conv2d(32,64, kernel_size = (4,4), stride = 2), #output = 64x6x6
-            nn.Conv2d(64,64, kernel_size = (4,4), stride = 2), #output = 64x2x2
-            nn.Flatten(start_dim=0, end_dim=-1),
+            nn.Conv2d(1,32, kernel_size = (4,4), stride = 2, bias = self.bias_bool), #input = 1x64x64 output = 32x31x31
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(num_features=32), 
+            nn.Conv2d(32,32, kernel_size = (4,4), stride = 2, bias = self.bias_bool), #output = 32x14x14 (this one layer uses the floor function in the formula for the outputsize, so we need output_padding = 1 in th ereverse conv)
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(num_features=32),
+            nn.Conv2d(32,64, kernel_size = (4,4), stride = 2, bias = self.bias_bool), #output = 64x6x6
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(num_features=64),
+            nn.Conv2d(64,64, kernel_size = (4,4), stride = 2, bias = self.bias_bool), #output = 64x2x2
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(num_features=64),
+            nn.Flatten(start_dim=1, end_dim=-1),
             nn.Linear(256,256),
             nn.ReLU(),
             nn.Linear(256, 2*k)
@@ -22,12 +31,20 @@ class beta_VAE_chairs(nn.Module):
 
         self.decoder = nn.Sequential(
         nn.Linear(k, 256), #output = 256
+        nn.ReLU(),
         nn.Linear(256, 256), #output = 256
-        nn.Unflatten(dim=0, unflattened_size=(64, 2, 2)), #output = 64x2x2
-        nn.ConvTranspose2d(in_channels = 64, out_channels=64, kernel_size=(4,4), stride = 2), #output = 64x6x6
-        nn.ConvTranspose2d(in_channels = 64, out_channels=32, kernel_size=(4,4), stride = 2), #output = 32x14x14
-        nn.ConvTranspose2d(in_channels = 32, out_channels=32, kernel_size=(4,4), stride = 2, output_padding = 1), #output = 32x31x31 
-        nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2),
+        nn.ReLU(),
+        nn.Unflatten(dim=1, unflattened_size=(64, 2, 2)), #output = 64x2x2
+        nn.ConvTranspose2d(in_channels = 64, out_channels=64, kernel_size=(4,4), stride = 2, bias = self.bias_bool), #output = 64x6x6
+        nn.ReLU(),
+        nn.BatchNorm2d(num_features=64),
+        nn.ConvTranspose2d(in_channels = 64, out_channels=32, kernel_size=(4,4), stride = 2, bias = self.bias_bool), #output = 32x14x14
+        nn.ReLU(),
+        nn.BatchNorm2d(num_features=32),
+        nn.ConvTranspose2d(in_channels = 32, out_channels=32, kernel_size=(4,4), stride = 2, output_padding = 1, bias = self.bias_bool), #output = 32x31x31 
+        nn.ReLU(),
+        nn.BatchNorm2d(num_features=32),
+        nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2, bias = self.bias_bool),
         nn.ReLU() #output should be 1x64x64, where each entry is a probability 
         )
 
@@ -42,8 +59,9 @@ class beta_VAE_chairs(nn.Module):
             return self.decoder_output
 
     def forward(self, input):
-        self.encoder_output = self.encoder(input)
-        mu, sigma = t.split(self.encoder_output, self.latent_dim)
+        self.encoder_output = self.encoder(input) #Shape B x (2*k)
+        mu, log_sigma = t.split(self.encoder_output, self.latent_dim, dim=1)
+        sigma = t.exp(log_sigma)
         Sampler = t.distributions.MultivariateNormal(t.zeros(self.latent_dim), t.eye(self.latent_dim))
         epsilon = Sampler.sample()
         # epsilon = t.normal(t.zeros(self.latent_dim), t.eye(self.latent_dim)) #TODO: doublecheck mean dimension

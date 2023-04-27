@@ -23,14 +23,33 @@ from arch import beta_VAE_chairs
 #%%
 beta_VAE_MNIST = beta_VAE_chairs(k = 10)
 
+# for params in beta_VAE_MNIST.decoder[6].parameters():
+#     print(f"{params.shape=}")
+#     print(f"{params.max()=}")
+#     print(f"{params.min()=}")
+#     print(f"{params.mean()=}")
+#     print(f"{params.std()=}")
+
 #%%
-bernoulli_means = beta_VAE_MNIST(MNIST_data[0][0])
+image1 = MNIST_data[0][0]
+image2 = MNIST_data[1][0]
+
+images = t.stack((image1, image2), dim=0)
+
+print(images.shape)
+
+bernoulli_means = beta_VAE_MNIST(images)
 
 # print(bernoulli_means)
 print(bernoulli_means)
 print(t.max(bernoulli_means))
 print(t.min(bernoulli_means))
 
-plt.imshow(bernoulli_means.detach().reshape(64, 64, 1))
+plt.imshow(bernoulli_means[0].detach().reshape(64, 64, 1))
+
 
 # %%
+plt.imshow(bernoulli_means[1].detach().reshape(64, 64, 1))
+
+
+#%%
