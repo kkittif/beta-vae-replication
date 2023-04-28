@@ -45,7 +45,7 @@ class beta_VAE_chairs(nn.Module):
         nn.ReLU(),
         nn.BatchNorm2d(num_features=32),
         nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2, bias = self.bias_bool),
-        nn.ReLU() #output should be 1x64x64, where each entry is a probability 
+        nn.Sigmoid() #output should be 1x64x64, where each entry is a probability 
         )
 
         self.encoder_output = None
@@ -61,19 +61,28 @@ class beta_VAE_chairs(nn.Module):
             return self.decoder_output
 
     def forward(self, input):
+
         self.encoder_output = self.encoder(input) #Shape B x (2*k)
+
+
+
+
         self.mu, log_sigma = t.split(self.encoder_output, self.latent_dim, dim=1)
         self.sigma = t.exp(log_sigma)
         Sampler = t.distributions.MultivariateNormal(t.zeros(self.latent_dim), t.eye(self.latent_dim))
         epsilon = Sampler.sample()
         # epsilon = t.normal(t.zeros(self.latent_dim), t.eye(self.latent_dim)) #TODO: doublecheck mean dimension
         latent = self.mu + self.sigma * epsilon #k-dim vector
-        print(f"{self.mu=}")
-        print(f"{epsilon=}")
-        print(f"{self.sigma=}")
+        # print(f"{self.mu=}")
+        # print(f"{epsilon=}")
+        # print(f"{self.sigma=}")
 
-        print(latent.shape)
-        print(latent)
+        # print(f"{self.encoder_output.min()=}")
+        # print(f"{self.encoder_output.max()=}")
+        # print(f"{self.encoder_output.mean()=}")
+
+        # print(latent.shape)
+        # print(latent)
         self.decoder_output = self.decoder(latent)
 
         return self.decoder_output
