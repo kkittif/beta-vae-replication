@@ -50,6 +50,8 @@ class beta_VAE_chairs(nn.Module):
 
         self.encoder_output = None
         self.decoder_output = None
+        self.mu = None
+        self.sigma = None
 
     def reconstruct(self, sample: bool):
         #Beta VAE paper seems to just take the mean. We could do that or sample from cont. Bernoulli
@@ -60,15 +62,15 @@ class beta_VAE_chairs(nn.Module):
 
     def forward(self, input):
         self.encoder_output = self.encoder(input) #Shape B x (2*k)
-        mu, log_sigma = t.split(self.encoder_output, self.latent_dim, dim=1)
-        sigma = t.exp(log_sigma)
+        self.mu, log_sigma = t.split(self.encoder_output, self.latent_dim, dim=1)
+        self.sigma = t.exp(log_sigma)
         Sampler = t.distributions.MultivariateNormal(t.zeros(self.latent_dim), t.eye(self.latent_dim))
         epsilon = Sampler.sample()
         # epsilon = t.normal(t.zeros(self.latent_dim), t.eye(self.latent_dim)) #TODO: doublecheck mean dimension
-        latent = mu + sigma * epsilon #k-dim vector
-        print(f"{mu=}")
+        latent = self.mu + self.sigma * epsilon #k-dim vector
+        print(f"{self.mu=}")
         print(f"{epsilon=}")
-        print(f"{sigma=}")
+        print(f"{self.sigma=}")
 
         print(latent.shape)
         print(latent)
