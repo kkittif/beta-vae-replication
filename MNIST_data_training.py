@@ -3,19 +3,22 @@ import torch as t
 from torchvision import datasets, transforms
 from torchvision.transforms import Compose, ToTensor, Resize
 import matplotlib.pyplot as plt
-
 from torch.utils.data import DataLoader
 
-
+# Import MNIST data and split into batches
 MNIST_data = datasets.MNIST(
     root='data',
     train = True,
     transform = Compose([ToTensor(), Resize((64, 64)),]),
     download= True)
 
-# print(MNIST_data[0][0])
+training_data = DataLoader(MNIST_data, batch_size=64, shuffle = True)
+
+print(training_data.shape())
 
 #%% 
+
+# Visualise the data 
 plt.imshow(MNIST_data[0][0].reshape((64, 64, 1)))
 
 from arch import beta_VAE_chairs
