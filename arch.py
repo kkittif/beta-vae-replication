@@ -53,13 +53,24 @@ class beta_VAE_chairs(nn.Module):
         self.mu = None
         self.sigma = None
 
-    def reconstruct(self, sample: bool):
+    def reconstruct(self):
         #Beta VAE paper seems to just take the mean. We could do that or sample from cont. Bernoulli
-        if sample:
-            sampler = t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = t.sigmoid(self.decoder_output))
-            return sampler.sample()
-        else:
-            return t.sigmoid(self.decoder_output)
+        # if sample:
+        #     sampler = t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = t.sigmoid(self.decoder_output))
+        #     return sampler.sample()
+        # else:
+        #     return t.sigmoid(self.decoder_output)
+
+        decoder_probs = t.sigmoid(self.decoder_output)
+
+        decoder_output_scaled = t.where(t.abs(decoder_probs - 1.) < 10e-8, 1-10e-8, decoder_probs)
+        decoder_output_scaled = t.where(t.abs(decoder_probs) < 10e-8, 10e-8, decoder_output_scaled)
+
+        lam = decoder_output_scaled
+
+
+        mean = t.where(t.abs(lam - 0.5) < 10e-3, 0.5, lam/(2*lam - 1) + 1/(2*t.atanh(1-2*lam)) )
+        return mean
 
     def forward(self, input):
 

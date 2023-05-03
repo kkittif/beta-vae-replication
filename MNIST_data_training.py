@@ -51,7 +51,7 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         loss.backward()
         optimizer.step()
         count += 1
-        if count > 200:
+        if count > 50:
             break
         
     return (total_loss / len(dataloader.dataset))   #.item()
@@ -98,10 +98,10 @@ plt.imshow(images[1].detach().reshape(64, 64, 1))
 #%%
 with t.no_grad():
     bernoulli_means = beta_VAE_MNIST(images)
-    plt.imshow(beta_VAE_MNIST.reconstruct(sample = True)[0].detach().reshape(64,64,1))
+    plt.imshow(beta_VAE_MNIST.reconstruct()[0].detach().reshape(64,64,1))
 
     #plt.imshow(bernoulli_means[0].detach().reshape(64, 64, 1))
-    print(t.min(beta_VAE_MNIST.reconstruct(sample = False)[1]))
+    print(t.min(beta_VAE_MNIST.reconstruct()[0]))
 
 #%%
 target = t.ones([10, 64], dtype=t.float32)  # 64 classes, batch size = 10
