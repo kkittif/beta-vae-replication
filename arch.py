@@ -44,8 +44,8 @@ class beta_VAE_chairs(nn.Module):
         nn.ConvTranspose2d(in_channels = 32, out_channels=32, kernel_size=(4,4), stride = 2, output_padding = 1, bias = self.bias_bool), #output = 32x31x31 
         nn.ReLU(),
         nn.BatchNorm2d(num_features=32),
-        nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2, bias = self.bias_bool),
-        nn.Sigmoid() #output should be 1x64x64, where each entry is a probability 
+        nn.ConvTranspose2d(in_channels = 32, out_channels=1, kernel_size=(4,4), stride = 2, bias = self.bias_bool), #output should be 1x64x64, where each entry is a logit 
+        nn.BatchNorm2d(num_features=1)
         )
 
         self.encoder_output = None
@@ -56,10 +56,10 @@ class beta_VAE_chairs(nn.Module):
     def reconstruct(self, sample: bool):
         #Beta VAE paper seems to just take the mean. We could do that or sample from cont. Bernoulli
         if sample:
-            sampler = t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = self.decoder_output)
+            sampler = t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = t.sigmoid(self.decoder_output))
             return sampler.sample()
         else:
-            return self.decoder_output
+            return t.sigmoid(self.decoder_output)
 
     def forward(self, input):
 
