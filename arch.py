@@ -56,17 +56,14 @@ class beta_VAE_chairs(nn.Module):
     def reconstruct(self, sample: bool):
         #Beta VAE paper seems to just take the mean. We could do that or sample from cont. Bernoulli
         if sample:
-            return t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = self.decoder_output)
+            sampler = t.distributions.continuous_bernoulli.ContinuousBernoulli(probs = self.decoder_output)
+            return sampler.sample()
         else:
             return self.decoder_output
 
     def forward(self, input):
 
         self.encoder_output = self.encoder(input) #Shape B x (2*k)
-
-
-
-
         self.mu, log_sigma = t.split(self.encoder_output, self.latent_dim, dim=1)
         self.sigma = t.exp(log_sigma)
         Sampler = t.distributions.MultivariateNormal(t.zeros(self.latent_dim), t.eye(self.latent_dim))
