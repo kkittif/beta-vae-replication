@@ -27,10 +27,10 @@ training_dataloader = DataLoader(MNIST_data, batch_size=50, shuffle = True)
 
 #%%
 #Create smaller dataset from MNIST
-sample = random.sample(range(0,len(MNIST_data)), 10000)
+sample = random.sample(range(0,len(MNIST_data)), 20000)
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
-training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffle = True)
+training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 200, shuffle = True)
 #%%
 
 #%% 
@@ -45,14 +45,19 @@ image2 = MNIST_data[1][0]
 images = t.stack((image1, image2), dim=0)
 bernoulli_means = beta_VAE_MNIST(images)
 
+
 #%%
 
 #Training the  net on small amount of data
 #config = {'beta' : 1 }
 
 beta = 1
+clip_value = 5
+learning_rate = 10e-5
+
+
 def train_one_epoch(model, dataloader, loss_fun) -> float:
-    optimizer = t.optim.Adam(model.parameters())
+    optimizer = t.optim.SGD(model.parameters(), lr = learning_rate)
     total_loss = 0
     count = 0 
     for batch_x, batch_y in dataloader:
@@ -62,12 +67,17 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         if t.isnan(loss):
             print('Loss was nan')
             break
+        print(f"{loss=}")
         total_loss += loss.item() * len(batch_x)
         loss.backward()
+        t.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                if t.isnan(param.grad).any():  
+                    print(f'Gradient of {name} is NaN')
+                else:
+                    print(f'Min and max of {name}.grad: {param.grad.min()} and {param.grad.max()} ')
         optimizer.step()
-        count += 1
-        if count > 50:
-            break
     return (total_loss / len(dataloader.dataset))   #.item()
 
 
@@ -94,6 +104,27 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
     regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
 
+
+    reconstruction_loss_inputs = [log_C, decoder_output_scaled]
+
+    regularization_loss_inputs = [model.sigma, mu_squared]
+
+
+    for i in range(len(reconstruction_loss_inputs)):
+        if t.isnan(t.mean(reconstruction_loss_inputs[i])):
+            print(f'{i} from reconstruction loss inputs was nan')
+
+    for i in range(len(regularization_loss_inputs)):
+        if t.isnan(t.mean(regularization_loss_inputs[i])):
+            print(f'{i} from regularization loss inputs was nan')
+
+    if t.isnan(t.mean(reconstruction_loss)):
+        print('Reconstruction loss was nan')
+
+
+    if t.isnan(t.mean(regularization_loss)):
+        print('Regularization loss was nan')
+    
     return t.mean(reconstruction_loss + beta * regularization_loss)
 
 #%%
@@ -113,11 +144,8 @@ plt.imshow(images[1].detach().reshape(64, 64, 1))
 with t.no_grad():
     bernoulli_means = beta_VAE_MNIST(images)
     plt.imshow(beta_VAE_MNIST.reconstruct()[0].detach().reshape(64,64,1))
-
-    #plt.imshow(bernoulli_means[0].detach().reshape(64, 64, 1))
-    print(t.min(beta_VAE_MNIST.reconstruct()[0]))
 #%%
-index = 1
+index = 0
 original_img = images[index].detach().reshape(64, 64, 1)
 reconstructed_img = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
 difference = t.abs(original_img - reconstructed_img)
@@ -133,3 +161,5 @@ output = t.full([10, 64], 1.5)  # A prediction (logit)
 pos_weight = t.ones([64])  # All weights are equal to 1
 criterion = t.nn.BCEWithLogitsLoss(reduction = 'none')
 criterion(output, target).shape  # -log(sigmoid(1.5))
+
+# %%
