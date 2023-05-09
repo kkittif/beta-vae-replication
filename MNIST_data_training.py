@@ -53,7 +53,7 @@ bernoulli_means = beta_VAE_MNIST(images)
 
 beta = 1
 clip_value = 5
-learning_rate = 10e-5
+learning_rate = 10e-2
 
 
 def train_one_epoch(model, dataloader, loss_fun) -> float:
@@ -66,6 +66,7 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         loss = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
         if t.isnan(loss):
             print('Loss was nan')
+            print(f"{count=}")
             break
         print(f"{loss=}")
         total_loss += loss.item() * len(batch_x)
@@ -77,7 +78,8 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
                     print(f'Gradient of {name} is NaN')
                 else:
                     print(f'Min and max of {name}.grad: {param.grad.min()} and {param.grad.max()} ')
-        optimizer.step()
+        optimizer.step() 
+        count += 1 
     return (total_loss / len(dataloader.dataset))   #.item()
 
 
@@ -129,12 +131,14 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
 #%%
 #Visualize training loss
-num_epoch = 1
+num_epoch = 30
 train_losses = []
 for epoch in range(num_epoch):
     train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli))
-#plt.plot(train_losses, label='Train')
-#plt.legend()
+
+ #%%   
+plt.plot(train_losses, label='Train')
+plt.legend()
 
 #%%
 #Print one image's reconstruction
@@ -143,9 +147,9 @@ plt.imshow(images[1].detach().reshape(64, 64, 1))
 #%%
 with t.no_grad():
     bernoulli_means = beta_VAE_MNIST(images)
-    plt.imshow(beta_VAE_MNIST.reconstruct()[0].detach().reshape(64,64,1))
+    plt.imshow(beta_VAE_MNIST.reconstruct()[1].detach().reshape(64,64,1))
 #%%
-index = 0
+index = 1
 original_img = images[index].detach().reshape(64, 64, 1)
 reconstructed_img = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
 difference = t.abs(original_img - reconstructed_img)
