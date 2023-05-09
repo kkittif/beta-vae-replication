@@ -6,7 +6,16 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from einops import rearrange, reduce, repeat
 import math 
+import random
 
+#%%
+#Set seed to reproduce the same results (uncomment for experiments)
+# I used this setup and got the same trainiing runs, however the pytorch documentation suggest some extra settings for the DataLoaders work_init_fn and generator
+# seed = 42
+# t.manual_seed(seed)
+# random.seed(seed)
+# t.use_deterministic_algorithms(True)
+#%%
 # Import MNIST data and split into batches
 MNIST_data = datasets.MNIST(
     root='data',
@@ -16,6 +25,12 @@ MNIST_data = datasets.MNIST(
 
 training_dataloader = DataLoader(MNIST_data, batch_size=50, shuffle = True)
 
+#%%
+#Create smaller dataset from MNIST
+sample = random.sample(range(0,len(MNIST_data)), 10000)
+MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
+
+training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffle = True)
 #%%
 
 #%% 
@@ -53,7 +68,6 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         count += 1
         if count > 50:
             break
-        
     return (total_loss / len(dataloader.dataset))   #.item()
 
 
@@ -74,7 +88,7 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     #Reconstruction loss
     bce_loss = t.nn.BCEWithLogitsLoss(reduction = 'none')
     bce_loss_by_batch = reduce(bce_loss(input, decoder_output), 'b c h w -> b', 'sum')
-    reconstruction_loss = - (t.sum(log_C, dim = (1,2,3)) + bce_loss_by_batch) #shape: (b,)
+    reconstruction_loss = (- t.sum(log_C, dim = (1,2,3)) + bce_loss_by_batch) #shape: (b,)
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
@@ -87,7 +101,7 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 num_epoch = 1
 train_losses = []
 for epoch in range(num_epoch):
-    train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader, loss_bernoulli))
+    train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli))
 #plt.plot(train_losses, label='Train')
 #plt.legend()
 
@@ -102,7 +116,17 @@ with t.no_grad():
 
     #plt.imshow(bernoulli_means[0].detach().reshape(64, 64, 1))
     print(t.min(beta_VAE_MNIST.reconstruct()[0]))
-
+#%%
+index = 1
+original_img = images[index].detach().reshape(64, 64, 1)
+reconstructed_img = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
+difference = t.abs(original_img - reconstructed_img)
+#%%
+plt.imshow(original_img, vmin = 0, vmax = 1)
+plt.colorbar()
+#%%
+plt.imshow(reconstructed_img, vmin = 0, vmax = 1)
+plt.colorbar()
 #%%
 target = t.ones([10, 64], dtype=t.float32)  # 64 classes, batch size = 10
 output = t.full([10, 64], 1.5)  # A prediction (logit)
