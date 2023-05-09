@@ -23,7 +23,7 @@ MNIST_data = datasets.MNIST(
     transform = Compose([ToTensor(), Resize((64, 64)),]),
     download= True)
 
-training_dataloader = DataLoader(MNIST_data, batch_size=50, shuffle = True)
+training_dataloader = DataLoader(MNIST_data, batch_size = 50, shuffle = True)
 
 #%%
 #Create smaller dataset from MNIST
@@ -52,12 +52,14 @@ bernoulli_means = beta_VAE_MNIST(images)
 
 beta = 1
 def train_one_epoch(model, dataloader, loss_fun) -> float:
+    t.autograd.set_detect_anomaly(True)
     optimizer = t.optim.Adam(model.parameters())
     total_loss = 0
     count = 0 
     for batch_x, batch_y in dataloader:
         optimizer.zero_grad()
         decoder_output = model(batch_x)
+        print(t.any(decoder_output == 0.))
         loss = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
         if t.isnan(loss):
             print('Loss was nan')
@@ -80,30 +82,73 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
     #Taylor expansion of log C close to 0.5
     log_C = t.where(decoder_output_scaled == 0.5, t.log(t.tensor((2.0))), decoder_output_scaled)
+    print(log_C.grad_fn, 1)
+    mask_1 = decoder_output_scaled != 0.5
     log_C = t.where(t.abs(log_C - 0.5) < 10e-3, t.log(t.tensor(2)) + t.log(1+((1-2*decoder_output_scaled)**2)/3), log_C)
-    mask = log_C == decoder_output_scaled
-    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_scaled)/(1-2*decoder_output_scaled)), log_C) 
+    print(log_C.grad_fn, 2)
+    mask_2 =  t.abs(decoder_output_scaled - 0.5) >= 10e-3
+    #mask = log_C == decoder_output_scaled
+    mask = t.logical_and(mask_1, mask_2) 
+    
+    print(f"{t.any(2*t.atanh(1-2*decoder_output_scaled) == 0. )=}")
+    print(f"{t.any((1-2*log_C) == 0.5 )=}")
+    print(f"{t.any(t.logical_and((1-2*decoder_output_scaled) == 0.5, mask ))=}") #If this is True then our mask does not work. This has to be false for the mask to work
+
+    #exact_value = )
+    #print(exact_value.grad_fn)
+    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_scaled)/(1-2*decoder_output_scaled)), log_C)
+    print(log_C.grad_fn, 3)
  
     
     #Reconstruction loss
     bce_loss = t.nn.BCEWithLogitsLoss(reduction = 'none')
     bce_loss_by_batch = reduce(bce_loss(input, decoder_output), 'b c h w -> b', 'sum')
     reconstruction_loss = (- t.sum(log_C, dim = (1,2,3)) + bce_loss_by_batch) #shape: (b,)
+    print(reconstruction_loss.grad_fn)
+
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
-    regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
 
+    regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
+    print(regularization_loss.grad_fn)
     return t.mean(reconstruction_loss + beta * regularization_loss)
 
 #%%
-#Visualize training loss
+#Trivial loss to debug our backprop
+# model = beta_VAE_chairs(k = 10)
+# optimizer = t.optim.Adam(model.parameters())
+# optimizer.zero_grad()
+
+
+# total_loss = 0
+# batch_x, batch_y = next(iter(training_dataloader_small)) 
+# batch_x = batch_x.requires_grad_()
+# decoder_output = model(batch_x)
+
+# loss = t.sum(decoder_output[2,:,:,:], dim = (0,1,2))
+# grads0 = t.autograd.grad(outputs = loss, inputs= batch_x)
+# print(grads0)
+# #loss.backward(retain_graph = True)
+
+# #grads = t.autograd.grad(outputs = loss, inputs= batch_x)
+# #%%
+
+# print(grads[0][0])
+# #print(batch_x[0].grad)
+# #%%
+# print(grads[0][:,:,10,:])
+
+#%%
+#Train
 num_epoch = 1
 train_losses = []
 for epoch in range(num_epoch):
     train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli))
-#plt.plot(train_losses, label='Train')
-#plt.legend()
+#%%
+#Visualize training loss
+plt.plot(train_losses, label='Train')
+plt.legend()
 
 #%%
 #Print one image's reconstruction
@@ -133,3 +178,40 @@ output = t.full([10, 64], 1.5)  # A prediction (logit)
 pos_weight = t.ones([64])  # All weights are equal to 1
 criterion = t.nn.BCEWithLogitsLoss(reduction = 'none')
 criterion(output, target).shape  # -log(sigmoid(1.5))
+#%%
+#Experimenting with backward hooks
+backward_values = {}
+def hook_fn_backward(module, inp_grad, out_grad):
+    backward_values[module] = {}
+    backward_values[module]["input"] = inp_grad
+    backward_values[module]["output"] = out_grad
+
+model = beta_VAE_chairs()
+
+modules = model.named_children()
+print(modules)
+#%%
+for name, module in modules:
+    module.register_backward_hook(hook_fn_backward)
+
+#%%
+num_epoch = 1
+train_losses = []
+for epoch in range(num_epoch):
+    train_losses.append(train_one_epoch(model, training_dataloader_small, loss_bernoulli))
+
+#%%
+#print(backward_values)
+print(modules)
+for name, module in modules:
+    print(name)
+    print(backward_values[module]['input'])
+
+
+#%%
+#Testing t.where
+tensor = t.randn(10,10)
+tensor[0,5] = 0
+mask = tensor != 0
+div = t.where(mask, 1/tensor, )
+print(div)
