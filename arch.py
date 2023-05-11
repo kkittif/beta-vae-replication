@@ -67,9 +67,8 @@ class beta_VAE_chairs(nn.Module):
         decoder_output_scaled = t.where(t.abs(decoder_probs) < 10e-8, 10e-8, decoder_output_scaled)
 
         lam = decoder_output_scaled
-
-
         mean = t.where(t.abs(lam - 0.5) < 10e-3, 0.5, lam/(2*lam - 1) + 1/(2*t.atanh(1-2*lam)) )
+        
         return mean
 
     def forward(self, input):
@@ -79,18 +78,7 @@ class beta_VAE_chairs(nn.Module):
         self.sigma = t.exp(log_sigma)
         Sampler = t.distributions.MultivariateNormal(t.zeros(self.latent_dim), t.eye(self.latent_dim))
         epsilon = Sampler.sample()
-        # epsilon = t.normal(t.zeros(self.latent_dim), t.eye(self.latent_dim)) #TODO: doublecheck mean dimension
         latent = self.mu + self.sigma * epsilon #k-dim vector
-        # print(f"{self.mu=}")
-        # print(f"{epsilon=}")
-        # print(f"{self.sigma=}")
-
-        # print(f"{self.encoder_output.min()=}")
-        # print(f"{self.encoder_output.max()=}")
-        # print(f"{self.encoder_output.mean()=}")
-
-        # print(latent.shape)
-        # print(latent)
         self.decoder_output = self.decoder(latent)
 
         return self.decoder_output

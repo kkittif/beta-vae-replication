@@ -5,6 +5,7 @@ from torchvision.transforms import Compose, ToTensor, Resize
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from einops import rearrange, reduce, repeat
+from arch import beta_VAE_chairs
 import math 
 import random
 
@@ -31,19 +32,6 @@ sample = random.sample(range(0,len(MNIST_data)), 10000)
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
 training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffle = True)
-#%%
-
-#%% 
-from arch import beta_VAE_chairs
-beta_VAE_MNIST = beta_VAE_chairs(k = 10)
-
-#%%
-#Testing a forward pass
-image1 = MNIST_data[0][0]
-image2 = MNIST_data[1][0]
-
-images = t.stack((image1, image2), dim=0)
-bernoulli_means = beta_VAE_MNIST(images)
 
 #%%
 
@@ -52,6 +40,7 @@ bernoulli_means = beta_VAE_MNIST(images)
 
 beta = 1
 def train_one_epoch(model, dataloader, loss_fun) -> float:
+    t.autograd.set_detect_anomaly(True)
     optimizer = t.optim.Adam(model.parameters())
     total_loss = 0
     count = 0 
@@ -59,9 +48,6 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         optimizer.zero_grad()
         decoder_output = model(batch_x)
         loss = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
-        if t.isnan(loss):
-            print('Loss was nan')
-            break
         total_loss += loss.item() * len(batch_x)
         loss.backward()
         optimizer.step()
@@ -82,7 +68,8 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     log_C = t.where(decoder_output_scaled == 0.5, t.log(t.tensor((2.0))), decoder_output_scaled)
     log_C = t.where(t.abs(log_C - 0.5) < 10e-3, t.log(t.tensor(2)) + t.log(1+((1-2*decoder_output_scaled)**2)/3), log_C)
     mask = log_C == decoder_output_scaled
-    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_scaled)/(1-2*decoder_output_scaled)), log_C) 
+    decoder_output_processed = t.where(mask, decoder_output_scaled, 0.1)
+    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_processed)/(1-2*decoder_output_processed)), log_C) 
  
     
     #Reconstruction loss
@@ -97,30 +84,30 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     return t.mean(reconstruction_loss + beta * regularization_loss)
 
 #%%
-#Visualize training loss
-num_epoch = 1
+#Training
+beta_VAE_MNIST = beta_VAE_chairs(k = 10)
+num_epoch = 3
 train_losses = []
 for epoch in range(num_epoch):
     train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli))
-#plt.plot(train_losses, label='Train')
-#plt.legend()
+plt.plot(train_losses, label='Train')
+plt.legend()
 
 #%%
-#Print one image's reconstruction
-plt.imshow(images[1].detach().reshape(64, 64, 1))
+#Examples
+image1 = MNIST_data[0][0]
+image2 = MNIST_data[1][0]
+
+images = t.stack((image1, image2), dim=0)
 
 #%%
+#Reconstructing examples
 with t.no_grad():
     bernoulli_means = beta_VAE_MNIST(images)
-    plt.imshow(beta_VAE_MNIST.reconstruct()[0].detach().reshape(64,64,1))
-
-    #plt.imshow(bernoulli_means[0].detach().reshape(64, 64, 1))
-    print(t.min(beta_VAE_MNIST.reconstruct()[0]))
 #%%
 index = 1
 original_img = images[index].detach().reshape(64, 64, 1)
 reconstructed_img = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
-difference = t.abs(original_img - reconstructed_img)
 #%%
 plt.imshow(original_img, vmin = 0, vmax = 1)
 plt.colorbar()
@@ -128,8 +115,3 @@ plt.colorbar()
 plt.imshow(reconstructed_img, vmin = 0, vmax = 1)
 plt.colorbar()
 #%%
-target = t.ones([10, 64], dtype=t.float32)  # 64 classes, batch size = 10
-output = t.full([10, 64], 1.5)  # A prediction (logit)
-pos_weight = t.ones([64])  # All weights are equal to 1
-criterion = t.nn.BCEWithLogitsLoss(reduction = 'none')
-criterion(output, target).shape  # -log(sigmoid(1.5))
