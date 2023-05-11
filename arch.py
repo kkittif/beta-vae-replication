@@ -68,7 +68,7 @@ class beta_VAE_chairs(nn.Module):
 
         lam = decoder_output_scaled
         mean = t.where(t.abs(lam - 0.5) < 10e-3, 0.5, lam/(2*lam - 1) + 1/(2*t.atanh(1-2*lam)) )
-        
+
         return mean
 
     def forward(self, input):
