@@ -61,6 +61,7 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         decoder_output = model(batch_x)
         print(t.any(decoder_output == 0.))
         loss = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
+        print(f"{loss=}")
         if t.isnan(loss):
             print('Loss was nan')
             break
@@ -94,9 +95,12 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     print(f"{t.any((1-2*log_C) == 0.5 )=}")
     print(f"{t.any(t.logical_and((1-2*decoder_output_scaled) == 0.5, mask ))=}") #If this is True then our mask does not work. This has to be false for the mask to work
 
+    decoder_output_processed = t.where(mask, decoder_output_scaled, 0.1)
+
+
     #exact_value = )
     #print(exact_value.grad_fn)
-    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_scaled)/(1-2*decoder_output_scaled)), log_C)
+    log_C = t.where(mask, t.log(2*t.atanh(1-2*decoder_output_processed)/(1-2*decoder_output_processed)), log_C)
     print(log_C.grad_fn, 3)
  
     
