@@ -39,7 +39,7 @@ MNIST_data_test = datasets.MNIST(
 test_dataloader = DataLoader(MNIST_data_test, shuffle = True)
 #%%
 #Create smaller dataset from MNIST
-sample = random.sample(range(0,len(MNIST_data)), 10000)
+sample = random.sample(range(0,len(MNIST_data)), 5000)
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
 training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffle = True)
@@ -49,24 +49,28 @@ training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffl
 #config = {'beta' : 1 }
 
 beta = 1
+
+#%%
 def train_one_epoch(model, dataloader, loss_fun) -> float:
     t.autograd.set_detect_anomaly(True)
     optimizer = t.optim.Adam(model.parameters())
 
     total_loss = 0
+    total_rec_loss = 0
+    total_reg_loss = 0
     count = 0 
     for batch_x, batch_y in tqdm(dataloader):
         optimizer.zero_grad()
         decoder_output = model(batch_x)
-        loss = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
+        losses = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
+        loss = losses[0]
         total_loss += loss.item() * len(batch_x)
+        total_rec_loss += losses[1].item() * len(batch_x)
+        total_reg_loss += losses[2].item() * len(batch_x)
         loss.backward()
         optimizer.step()
         count += 1
-        # if count > 50:
-        #     break
-    return (total_loss / len(dataloader.dataset))
-
+    return ((total_loss / len(dataloader.dataset)), total_rec_loss / len(dataloader.dataset), total_reg_loss / len(dataloader.dataset) )
 
 #%%
 
@@ -92,27 +96,33 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
     regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
 
-    return t.mean(reconstruction_loss + beta * regularization_loss)
+    return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(regularization_loss))
 
 #%%
 #Training
 beta_VAE_MNIST = beta_VAE_chairs(k = 10)
-num_epochs = 20
+num_epochs = 10
 train_losses = []
+rec_losses = []
+reg_losses = []
 runner = tqdm(range(num_epochs))
-
+#%%
 for epoch in runner:
-    train_losses.append(train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli))
-plt.plot(train_losses, label='Train')
+    three_losses = train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli)
+    train_losses.append(three_losses[0])
+    rec_losses.append(three_losses[1])
+    reg_losses.append(three_losses[2])
+
+#%%
+plt.plot(train_losses, label='Training')
+plt.plot(reg_losses, label='Regularization')
+plt.plot(rec_losses, label='Reconstruction')
 plt.legend()
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
 
 #%%
 #Examples
-image1 = MNIST_data[0][0]
-image2 = MNIST_data[1][0]
-
-#images = t.stack((image1, image2), dim=0)
-
 digit_images = [0]*10
 counter = 0
 for image, label in MNIST_data_test:
@@ -132,8 +142,7 @@ with t.no_grad():
 beta_VAE_MNIST.train()
 #%%
 # Create a figure with 2 rows and 10 columns of subplots
-fig, axes = plt.subplots(nrows=2, ncols=10, figsize=(20, 4),  sharex=True, sharey=True,
-                         gridspec_kw={"width_ratios": [1, 0.05] * 10})
+fig, axes = plt.subplots(nrows=2, ncols=10, figsize=(20, 4))
 axes = axes.flatten()
 
 # Loop over each subplot and plot the data
@@ -144,38 +153,32 @@ for i, ax in enumerate(axes): #enumerate(axes):
     else:
         reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
         im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
+        print(t.min(original_img))
+    ax.set_xticks([])
+    ax.set_yticks([])
 
-    #ax.plot(x, y * (i+1))
-    #ax.set_title(f"Plot {i+1}")
-
-# Adjust the layout of the subplots and show the figure
-#cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-#fig.colorbar(im, ax=axes.ravel().tolist())
 cbar_ax = fig.add_axes([0.95, 0.15, 0.02, 0.7])
-
-#fig.subplots_adjust(right=0.8)
-#cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
 fig.colorbar(im, cax=cbar_ax)
-
-#cax,kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
-#plt.colorbar(im, cax=cax, **kw)
-plt.subplots_adjust(wspace=0, hspace=0)
-#plt.tight_layout()
+plt.subplots_adjust(wspace=0.1, hspace=0.0)
 plt.show()
 
-
-#%%
-index = 1
-original_img = images[index].detach().reshape(64, 64, 1)
-reconstructed_img = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
-#%%
-plt.imshow(original_img, vmin = 0, vmax = 1)
-plt.colorbar()
-#%%
-plt.imshow(reconstructed_img, vmin = 0, vmax = 1)
-plt.colorbar()
 #%%
 #Save model (Remember to add a new name for each new model)
-model_name = 'basic_01.pt'
-path = '/workspaces/beta-vae-replication/saved_models/' + model_name
-t.save(beta_VAE_MNIST.state_dict(), path)
+save_model = False
+if save_model:
+    model_name = 'basic_02.pt'
+    path = '/workspaces/beta-vae-replication/saved_models/' + model_name
+    t.save(beta_VAE_MNIST.state_dict(), path)
+
+#%%
+#If only training on two images, we can use these to see what the training example is reconstructed as
+index = 1
+img_1 = MNIST_data_small[1][0]
+img_0 = MNIST_data_small[0][0]
+two_digits = t.stack((img_1, img_0))
+beta_VAE_MNIST.eval()
+with t.no_grad():
+    bernoulli_means = beta_VAE_MNIST(two_digits)
+beta_VAE_MNIST.train()
+imf = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
+plt.imshow(imf, vmin = 0, vmax = 1)
