@@ -13,10 +13,19 @@ import random
 import numpy as np
 
 #%%
+# Set any constant here
+config = {'beta' : 1, 
+          'epochs' : 2,
+          'batch_size' : 50,
+          'training_size' : 5000,
+          'latent_space' : 10,
+          'random_seed' : 42}
+
+#%%
 # Set seed to reproduce the same results (uncomment for experiments)
 # I used this setup and got the same trainiing runs, however the pytorch documentation suggest some extra settings for the DataLoaders work_init_fn and generator
 
-seed = 42
+seed = config['random_seed']
 t.manual_seed(seed)
 random.seed(seed)
 t.use_deterministic_algorithms(True)
@@ -28,7 +37,7 @@ MNIST_data = datasets.MNIST(
     transform = Compose([ToTensor(), Resize((64, 64)),]),
     download= True)
 
-training_dataloader = DataLoader(MNIST_data, batch_size=50, shuffle = True)
+training_dataloader = DataLoader(MNIST_data, batch_size = config['batch_size'], shuffle = True)
 
 MNIST_data_test = datasets.MNIST(
     root='data',
@@ -39,16 +48,10 @@ MNIST_data_test = datasets.MNIST(
 test_dataloader = DataLoader(MNIST_data_test, shuffle = True)
 #%%
 #Create smaller dataset from MNIST
-sample = random.sample(range(0,len(MNIST_data)), 5000)
+sample = random.sample(range(0,len(MNIST_data)), config['training_size'])
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
-training_dataloader_small = DataLoader(MNIST_data_small, batch_size = 50, shuffle = True)
-#%%
-
-#Training the  net on small amount of data
-#config = {'beta' : 1 }
-
-beta = 1
+training_dataloader_small = DataLoader(MNIST_data_small, batch_size = config['batch_size'], shuffle = True)
 
 #%%
 def train_one_epoch(model, dataloader, loss_fun) -> float:
@@ -62,7 +65,7 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
     for batch_x, batch_y in tqdm(dataloader):
         optimizer.zero_grad()
         decoder_output = model(batch_x)
-        losses = loss_fun(model, batch_x, decoder_output, model.encoder_output, beta)
+        losses = loss_fun(model, batch_x, decoder_output, model.encoder_output, config['beta'])
         loss = losses[0]
         total_loss += loss.item() * len(batch_x)
         total_rec_loss += losses[1].item() * len(batch_x)
@@ -94,14 +97,14 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
-    regularization_loss = 0.5*(t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1))) #shape: (b,)
+    regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
 
     return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(regularization_loss))
 
 #%%
 #Training
-beta_VAE_MNIST = beta_VAE_chairs(k = 10)
-num_epochs = 10
+beta_VAE_MNIST = beta_VAE_chairs(k = config['latent_space'])
+num_epochs = config['epochs']
 train_losses = []
 rec_losses = []
 reg_losses = []
