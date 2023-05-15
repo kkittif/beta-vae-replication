@@ -94,7 +94,7 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
-    regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
+    regularization_loss = 0.5*(t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1))) #shape: (b,)
 
     return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(regularization_loss))
 
