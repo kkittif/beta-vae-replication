@@ -15,11 +15,12 @@ import numpy as np
 #%%
 # Set any constant here
 config = {'beta' : 1, 
-          'epochs' : 2,
+          'epochs' : 20,
           'batch_size' : 50,
           'training_size' : 5000,
           'latent_space' : 10,
           'random_seed' : 42}
+
 
 #%%
 # Set seed to reproduce the same results (uncomment for experiments)
@@ -52,6 +53,51 @@ sample = random.sample(range(0,len(MNIST_data)), config['training_size'])
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
 training_dataloader_small = DataLoader(MNIST_data_small, batch_size = config['batch_size'], shuffle = True)
+
+#%%
+#Examples
+digit_images = [0]*10
+counter = 0
+for image, label in MNIST_data_test:
+    if isinstance(digit_images[label], int):
+        digit_images[label] = image
+        counter += 1
+    if counter == 10:
+        break
+
+images = t.stack(digit_images, dim = 0)
+
+#%%
+# Function plotting the reconstructions of digit examples
+
+def plot_recon_digits(images):
+
+    beta_VAE_MNIST.eval()
+    with t.no_grad():
+        bernoulli_means = beta_VAE_MNIST(images)
+    beta_VAE_MNIST.train()
+
+    # Create a figure with 2 rows and 10 columns of subplots
+    fig, axes = plt.subplots(nrows=2, ncols=10, figsize=(20, 4))
+    axes = axes.flatten()
+
+    # Loop over each subplot and plot the data
+    for i, ax in enumerate(axes): #enumerate(axes):
+        if i < 10:
+            original_img = images[i].detach().reshape(64, 64, 1)
+            im = ax.imshow(original_img, vmin = 0, vmax = 1)
+        else:
+            reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
+            im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
+            print(t.min(original_img))
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    cbar_ax = fig.add_axes([0.95, 0.15, 0.02, 0.7])
+    fig.colorbar(im, cax=cbar_ax)
+    plt.subplots_adjust(wspace=0.1, hspace=0.0)
+    plt.show()
+
 
 #%%
 def train_one_epoch(model, dataloader, loss_fun) -> float:
@@ -97,9 +143,9 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
-    regularization_loss = t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1)) #shape: (b,)
+    regularization_loss = 0.5*(t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1))) #shape: (b,)
 
-    return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(regularization_loss))
+    return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(beta*regularization_loss))
 
 #%%
 #Training
@@ -115,6 +161,8 @@ for epoch in runner:
     train_losses.append(three_losses[0])
     rec_losses.append(three_losses[1])
     reg_losses.append(three_losses[2])
+    print('Epoch: ', epoch)
+    plot_recon_digits(images)
 
 #%%
 plt.plot(train_losses, label='Training')
@@ -123,19 +171,12 @@ plt.plot(rec_losses, label='Reconstruction')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-
 #%%
-#Examples
-digit_images = [0]*10
-counter = 0
-for image, label in MNIST_data_test:
-    if isinstance(digit_images[label], int):
-        digit_images[label] = image
-        counter += 1
-    if counter == 10:
-        break
-
-images = t.stack(digit_images, dim = 0)
+print(reg_losses)
+plt.plot(reg_losses)
+plt.title('Regularization loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
 
 #%%
 #Reconstructing examples
@@ -143,27 +184,6 @@ beta_VAE_MNIST.eval()
 with t.no_grad():
     bernoulli_means = beta_VAE_MNIST(images)
 beta_VAE_MNIST.train()
-#%%
-# Create a figure with 2 rows and 10 columns of subplots
-fig, axes = plt.subplots(nrows=2, ncols=10, figsize=(20, 4))
-axes = axes.flatten()
-
-# Loop over each subplot and plot the data
-for i, ax in enumerate(axes): #enumerate(axes):
-    if i < 10:
-        original_img = images[i].detach().reshape(64, 64, 1)
-        im = ax.imshow(original_img, vmin = 0, vmax = 1)
-    else:
-        reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
-        im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
-        print(t.min(original_img))
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-cbar_ax = fig.add_axes([0.95, 0.15, 0.02, 0.7])
-fig.colorbar(im, cax=cbar_ax)
-plt.subplots_adjust(wspace=0.1, hspace=0.0)
-plt.show()
 
 #%%
 #Save model (Remember to add a new name for each new model)
