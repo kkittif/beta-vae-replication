@@ -2,9 +2,9 @@ import torch as t
 import torch.nn as nn
 
 
-class beta_VAE_chairs(nn.Module):
+class VAE(nn.Module):
     def __init__(self, k = 32):
-        super(beta_VAE_chairs, self).__init__()
+        super(VAE, self).__init__()
 
         self.bias_bool = False
 

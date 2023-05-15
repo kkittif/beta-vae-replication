@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from torch.utils.data import DataLoader
 from einops import rearrange, reduce, repeat
-from arch import beta_VAE_chairs
+from arch import VAE
 from tqdm import tqdm
 import math 
 import random
@@ -15,9 +15,9 @@ import numpy as np
 #%%
 # Set any constant here
 config = {'beta' : 1, 
-          'epochs' : 20,
+          'epochs' : 100,
           'batch_size' : 50,
-          'training_size' : 5000,
+          'training_size' : 10000,
           'latent_space' : 10,
           'random_seed' : 42}
 
@@ -46,13 +46,20 @@ MNIST_data_test = datasets.MNIST(
     transform = Compose([ToTensor(), Resize((64, 64)),]),
     download= True)
 
-test_dataloader = DataLoader(MNIST_data_test, shuffle = True)
+test_dataloader = DataLoader(MNIST_data_test, batch_size = 100, shuffle = True)
 #%%
 #Create smaller dataset from MNIST
 sample = random.sample(range(0,len(MNIST_data)), config['training_size'])
 MNIST_data_small = t.utils.data.Subset(MNIST_data, sample)
 
 training_dataloader_small = DataLoader(MNIST_data_small, batch_size = config['batch_size'], shuffle = True)
+
+sample_test = random.sample(range(0,len(MNIST_data_test)), config['training_size'])
+
+MNIST_data_small_test = t.utils.data.Subset(MNIST_data_test, sample_test)
+
+testing_dataloader_small = DataLoader(MNIST_data_small_test, batch_size = config['batch_size'], shuffle = True)
+
 
 #%%
 #Examples
@@ -89,7 +96,6 @@ def plot_recon_digits(images):
         else:
             reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
             im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
-            print(t.min(original_img))
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -119,7 +125,16 @@ def train_one_epoch(model, dataloader, loss_fun) -> float:
         loss.backward()
         optimizer.step()
         count += 1
-    return ((total_loss / len(dataloader.dataset)), total_rec_loss / len(dataloader.dataset), total_reg_loss / len(dataloader.dataset) )
+    model.eval()
+    total_test_loss = 0 
+    with t.no_grad():
+        for batch_x, batch_y in tqdm(testing_dataloader_small):
+            decoder_output = model(batch_x)
+            test_losses = loss_fun(model, batch_x, decoder_output, model.encoder_output, config['beta'])
+            test_loss = test_losses[0]
+            total_test_loss += test_loss.item() * len(batch_x)
+    model.train()
+    return ((total_loss / len(dataloader.dataset)), total_rec_loss / len(dataloader.dataset), total_reg_loss / len(dataloader.dataset), total_test_loss / len(testing_dataloader_small.dataset) )
 
 #%%
 
@@ -143,24 +158,35 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
     #Regularization loss
     mu_squared = t.einsum('...i,...i -> ...', [model.mu, model.mu])
-    regularization_loss = 0.5*(t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.log(t.prod(model.sigma, dim=1))) #shape: (b,)
+    regularization_loss = 0.5*(t.sum(model.sigma, dim = 1) - model.latent_dim + mu_squared - t.sum(t.log(model.sigma), dim = 1)) #shape: (b,) 
 
     return (t.mean(reconstruction_loss + beta * regularization_loss), t.mean(reconstruction_loss), t.mean(beta*regularization_loss))
 
 #%%
 #Training
-beta_VAE_MNIST = beta_VAE_chairs(k = config['latent_space'])
+beta_VAE_MNIST = VAE(k = config['latent_space'])
+
+
+load_model = True
+if load_model:
+    model_name = 'well_trained02.pt'
+    path = '/workspaces/beta-vae-replication/saved_models/' + model_name
+    beta_VAE_MNIST.load_state_dict(t.load(path))
+
+
 num_epochs = config['epochs']
-train_losses = []
-rec_losses = []
-reg_losses = []
+# train_losses = []
+# rec_losses = []
+# reg_losses = []
+# test_losses = []
 runner = tqdm(range(num_epochs))
 #%%
 for epoch in runner:
-    three_losses = train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli)
-    train_losses.append(three_losses[0])
-    rec_losses.append(three_losses[1])
-    reg_losses.append(three_losses[2])
+    four_losses = train_one_epoch(beta_VAE_MNIST, training_dataloader_small, loss_bernoulli)
+    train_losses.append(four_losses[0])
+    rec_losses.append(four_losses[1])
+    reg_losses.append(four_losses[2])
+    test_losses.append(four_losses[3])
     print('Epoch: ', epoch)
     plot_recon_digits(images)
 
@@ -168,6 +194,7 @@ for epoch in runner:
 plt.plot(train_losses, label='Training')
 plt.plot(reg_losses, label='Regularization')
 plt.plot(rec_losses, label='Reconstruction')
+plt.plot(test_losses, label='Test')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
@@ -189,13 +216,13 @@ beta_VAE_MNIST.train()
 #Save model (Remember to add a new name for each new model)
 save_model = False
 if save_model:
-    model_name = 'basic_02.pt'
+    model_name = 'model_name.pt'
     path = '/workspaces/beta-vae-replication/saved_models/' + model_name
     t.save(beta_VAE_MNIST.state_dict(), path)
 
 #%%
 #If only training on two images, we can use these to see what the training example is reconstructed as
-index = 1
+index = 0
 img_1 = MNIST_data_small[1][0]
 img_0 = MNIST_data_small[0][0]
 two_digits = t.stack((img_1, img_0))
@@ -205,3 +232,4 @@ with t.no_grad():
 beta_VAE_MNIST.train()
 imf = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
 plt.imshow(imf, vmin = 0, vmax = 1)
+
