@@ -11,6 +11,8 @@ from tqdm import tqdm
 import math 
 import random
 import numpy as np
+from statistics import mean
+
 
 #%%
 # Set seed to reproduce the same results (uncomment for experiments)
@@ -100,7 +102,9 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
 #%%
 #Training
-beta_VAE_MNIST = beta_VAE_chairs(k = 10)
+new_model = False
+if new_model:
+    beta_VAE_MNIST = beta_VAE_chairs(k = 10)
 num_epochs = 10
 train_losses = []
 rec_losses = []
@@ -133,6 +137,12 @@ for image, label in MNIST_data_test:
         break
 
 images = t.stack(digit_images, dim = 0)
+#%%
+load_model = False
+if load_model:
+    model_name = 'basic_01.pt'
+    path = '/workspaces/beta-vae-replication/saved_models/' + model_name
+    beta_VAE_MNIST .load_state_dict(t.load(path))
 
 #%%
 #Reconstructing examples
@@ -146,14 +156,18 @@ fig, axes = plt.subplots(nrows=2, ncols=10, figsize=(20, 4))
 axes = axes.flatten()
 
 # Loop over each subplot and plot the data
+
+minimums, averages, maximums = [],[],[]
 for i, ax in enumerate(axes): #enumerate(axes):
     if i < 10:
         original_img = images[i].detach().reshape(64, 64, 1)
-        im = ax.imshow(original_img, vmin = 0, vmax = 1)
+        im = ax.imshow(original_img, vmin = 0, vmax = 1, cmap='gray')
     else:
         reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
-        im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
-        print(t.min(original_img))
+        im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1 , cmap='gray')
+        minimums.append(t.min(reconstructed_img).item())
+        maximums.append(t.max(reconstructed_img).item())
+        averages.append(t.mean(reconstructed_img).item())
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -161,6 +175,9 @@ cbar_ax = fig.add_axes([0.95, 0.15, 0.02, 0.7])
 fig.colorbar(im, cax=cbar_ax)
 plt.subplots_adjust(wspace=0.1, hspace=0.0)
 plt.show()
+
+print(f"{averages=}, {minimums=}, {maximums=}")
+print(f"{mean(averages)=}, {min(minimums)=}, {max(maximums)=}")
 
 #%%
 #Save model (Remember to add a new name for each new model)
