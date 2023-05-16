@@ -89,7 +89,6 @@ def plot_recon_digits(images):
         else:
             reconstructed_img = beta_VAE_MNIST.reconstruct()[i-10].detach().reshape(64,64,1)
             im = ax.imshow(reconstructed_img, vmin = 0, vmax = 1)
-            print(t.min(original_img))
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -138,7 +137,7 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
     
     #Reconstruction loss
     bce_loss = t.nn.BCEWithLogitsLoss(reduction = 'none')
-    bce_loss_by_batch = reduce(bce_loss(input, decoder_output), 'b c h w -> b', 'sum')
+    bce_loss_by_batch = reduce(bce_loss(decoder_output, input), 'b c h w -> b', 'sum')
     reconstruction_loss = (- t.sum(log_C, dim = (1,2,3)) + bce_loss_by_batch) #shape: (b,)
 
     #Regularization loss
@@ -205,3 +204,11 @@ with t.no_grad():
 beta_VAE_MNIST.train()
 imf = beta_VAE_MNIST.reconstruct()[index].detach().reshape(64,64,1)
 plt.imshow(imf, vmin = 0, vmax = 1)
+
+#%%
+# Playground
+
+#Plotting the weights of the last unconvolutional layer
+last_unconv_params = dict(beta_VAE_MNIST.named_parameters())['decoder.14.weight'].detach()
+x = rearrange(last_unconv_params, 'b c w h -> (b w) h c')
+print(plt.imshow(x))
