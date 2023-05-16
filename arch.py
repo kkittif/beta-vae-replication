@@ -2,9 +2,9 @@ import torch as t
 import torch.nn as nn
 
 
-class beta_VAE_chairs(nn.Module):
+class VAE(nn.Module):
     def __init__(self, k = 32):
-        super(beta_VAE_chairs, self).__init__()
+        super(VAE, self).__init__()
 
         self.bias_bool = False
 
@@ -68,7 +68,7 @@ class beta_VAE_chairs(nn.Module):
 
         lam = decoder_output_scaled
         mean = t.where(t.abs(lam - 0.5) < 10e-3, 0.5, lam/(2*lam - 1) + 1/(2*t.atanh(1-2*lam)) )
-        
+
         return mean
 
     def forward(self, input):
