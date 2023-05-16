@@ -208,6 +208,9 @@ plt.imshow(imf, vmin = 0, vmax = 1)
 #%%
 # Playground
 
+print(t.max(beta_VAE_MNIST.reconstruct()[index].detach()))
+
+#%%
 #Plotting the weights of the last unconvolutional layer
 last_unconv_params = dict(beta_VAE_MNIST.named_parameters())['decoder.14.weight'].detach()
 x = rearrange(last_unconv_params, 'b c w h -> (b w) h c')
