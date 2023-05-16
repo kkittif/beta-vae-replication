@@ -216,7 +216,11 @@ beta_VAE_MNIST.train()
 #Save model (Remember to add a new name for each new model)
 save_model = True
 if save_model:
+<<<<<<< HEAD
     model_name = 'well_trainedv2av2.pt'
+=======
+    model_name = 'well_trainedv2b.pt'
+>>>>>>> 9ffad9bf3958b5e8ccf9e12feb3e6af414da5142
     path = '/workspaces/beta-vae-replication/saved_models/' + model_name
     t.save(beta_VAE_MNIST.state_dict(), path)
 
