@@ -19,7 +19,7 @@ config = {'beta' : 1,
           'batch_size' : 50,
           'training_size' : 10000,
           'latent_space' : 10,
-          'random_seed' : 42}
+          'random_seed' : 0}
 
 
 #%%
@@ -164,7 +164,7 @@ def loss_bernoulli(model, input, decoder_output, encoder_output, beta) -> float:
 
 #%%
 #Training
-beta_VAE_MNIST = VAE(k = config['latent_space'])
+# beta_VAE_MNIST = VAE(k = config['latent_space'])
 
 
 load_model = False
@@ -216,7 +216,7 @@ beta_VAE_MNIST.train()
 #Save model (Remember to add a new name for each new model)
 save_model = True
 if save_model:
-    model_name = 'base_01.pt'
+    model_name = 'well_trainedv2av2.pt'
     path = '/workspaces/beta-vae-replication/saved_models/' + model_name
     t.save(beta_VAE_MNIST.state_dict(), path)
 
