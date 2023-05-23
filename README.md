@@ -1,5 +1,4 @@
 # beta-vae-replication
-Implementing a beta-VAE
 
 In this project we implemented a selected beta-VAE architecture from the original paper: https://openreview.net/pdf?id=Sy2fzU9gl
 
