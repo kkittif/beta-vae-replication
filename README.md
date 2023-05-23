@@ -8,7 +8,7 @@ Below is a summary, our more detailed project write up on implementation details
 # VAE implementation details
 
 Architecture overview:
-![Untitled (16).png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/1a641053-17d0-4b8c-9565-300eecded38e/Untitled_(16).png)
+![Untitled (13)](https://github.com/kkittif/beta-vae-replication/assets/46658522/a8eef280-f521-4094-87e8-2689348a5d64)
 
 The encoder:
 ![Untitled (16)](https://github.com/kkittif/beta-vae-replication/assets/46658522/d9025745-d177-4605-9360-13d9b7a3b075)
