@@ -9,6 +9,8 @@ Below is a summary, our more detailed project write up on implementation details
 ## Architecture overview:
 ![Untitled (18)](https://github.com/kkittif/beta-vae-replication/assets/46658522/13d2ba39-b149-4225-bf60-e532ecf5a405)
 
+Adding more details: 
+
 ![Untitled (13)](https://github.com/kkittif/beta-vae-replication/assets/46658522/a8eef280-f521-4094-87e8-2689348a5d64)
 
 ## The encoder:
