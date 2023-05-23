@@ -2,7 +2,7 @@
 
 In this project we implemented a selected beta-VAE architecture from the original paper: https://openreview.net/pdf?id=Sy2fzU9gl
 
-Below is a summary, our more detailed project write up on implementation details and lessons learned is found here: (insert link)
+Below is a summary, our more detailed project write up on implementation details and lessons learned is found [here](https://brindle-wallet-5cd.notion.site/VAE-implementation-intuition-results-and-lessons-learned-1a3d172365db4fe0b0e274f940dcd29a)
 
 # VAE implementation details
 
